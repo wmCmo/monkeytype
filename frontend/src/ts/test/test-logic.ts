@@ -27,6 +27,8 @@ import { saveLocalResult, SaveLocalResultData } from "../collections/results";
 import * as Replay from "../components/pages/test/result/replay";
 import { getActiveTags } from "../queries/tags";
 import * as TodayTracker from "./today-tracker";
+import * as WeakSpotLog from "./weak-spot-log";
+import * as WeakSpot from "./weak-spot";
 import * as ChallengeContoller from "../controllers/challenge-controller";
 import { clearQuoteStats } from "../states/quote-rate";
 import {
@@ -1000,6 +1002,23 @@ export async function finish(difficultyFailed = false): Promise<void> {
     setIsTestInvalid(true);
     dontSave = true;
   }
+
+  WeakSpotLog.logResult({
+    t: completedEvent.timestamp,
+    mode: completedEvent.mode,
+    mode2: completedEvent.mode2,
+    wpm: completedEvent.wpm,
+    rawWpm: completedEvent.rawWpm,
+    acc: completedEvent.acc,
+    consistency: completedEvent.consistency,
+    testDuration: completedEvent.testDuration,
+    language: completedEvent.language,
+    funbox: [...completedEvent.funbox],
+    valid: !dontSave,
+    system: completedEvent.funbox.includes("weakspot")
+      ? WeakSpot.getCurrentSystem()
+      : undefined,
+  });
 
   // test is valid
 

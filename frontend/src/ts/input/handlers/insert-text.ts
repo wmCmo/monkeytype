@@ -300,7 +300,17 @@ export async function onInsertText(options: OnInsertTextParams): Promise<void> {
   });
 
   // this needs to be called after event logging
-  WeakSpot.updateScore(data, correct);
+  // scored against the target letter and the target letters before it, so a
+  // mistake counts against the letter the user meant to type, in its context
+  // (extra letters past the end of the word have no target and are skipped)
+  const expectedChar = currentWord[testInput.length];
+  if (expectedChar !== undefined) {
+    WeakSpot.updateScore({
+      before: currentWord.slice(0, testInput.length),
+      expected: expectedChar,
+      isCorrect: correct,
+    });
+  }
 
   // delete on error
   // skipped when the input was stopped - nothing was inserted to delete

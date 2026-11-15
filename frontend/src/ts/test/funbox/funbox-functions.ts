@@ -507,8 +507,8 @@ const list: Partial<Record<FunboxName, FunboxFunctions>> = {
     },
   },
   weakspot: {
-    getWord(wordset?: Wordset): string {
-      if (wordset !== undefined) return WeakSpot.getWord(wordset);
+    getWord(wordset?: Wordset, wordIndex?: number): string {
+      if (wordset !== undefined) return WeakSpot.getWord(wordset, wordIndex);
       else return "";
     },
   },
