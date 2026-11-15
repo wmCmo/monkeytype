@@ -91,45 +91,72 @@ function missesInTop(predictions: [number, boolean][], share: number): number {
 export type SystemComparison = {
   system: string;
   rounds: number;
-  /** mean of 100 - accuracy over the rounds, in % */
+  keystrokes: number;
+  misses: number;
+  /** misses per keystroke over all the system's rounds, in % */
   missRate: number;
-  /** standard error of missRate: differences smaller than ~2x this are noise */
+  /**
+   * standard error of missRate, treating each round as one sample (keystrokes
+   * within a round aren't independent): differences smaller than ~2x this
+   * are noise
+   */
   missRateError: number;
-  wpm: number;
 };
+
+// a keystroke can land a little before the timer starts
+const roundStartSlackMs = 500;
 
 /**
  * How often each weakspot word-picking system made you miss, from the rounds
  * where it was picked at random. The system whose words make you miss most is
  * the one finding your weak spots - as long as the systems ran interleaved,
  * on the same language and settings.
+ *
+ * Misses are counted per keystroke across all of a system's rounds, so a
+ * round that failed after two keystrokes counts for two keystrokes, not as a
+ * whole round. A round's keystrokes are the logged ones between its start
+ * (end time minus its duration) and its end.
  */
 export function getSystemComparison(
   results: LoggedResult[],
+  keystrokes: LoggedKeystroke[],
 ): SystemComparison[] {
-  const bySystem = new Map<string, LoggedResult[]>();
+  const bySystem = new Map<string, { keys: number; misses: number }[]>();
   for (const r of results) {
-    // failed rounds count too: failing a round is the strongest signal
-    if (r.system === undefined || r.testDuration <= 0) continue;
+    // failed rounds count too
+    if (r.system === undefined) continue;
+    const start = r.t - r.testDuration * 1000 - roundStartSlackMs;
+    let keys = 0;
+    let misses = 0;
+    for (const k of keystrokes) {
+      if (k[0] < start || k[0] > r.t) continue;
+      keys++;
+      if (k[4] === 0) misses++;
+    }
+    if (keys === 0) continue;
     const list = bySystem.get(r.system);
-    if (list === undefined) bySystem.set(r.system, [r]);
-    else list.push(r);
+    if (list === undefined) bySystem.set(r.system, [{ keys, misses }]);
+    else list.push({ keys, misses });
   }
   return [...bySystem]
     .map(([system, rounds]) => {
-      const misses = rounds.map((r) => 100 - r.acc);
-      const mean = misses.reduce((a, b) => a + b, 0) / misses.length;
-      const variance =
-        misses.length < 2
-          ? 0
-          : misses.reduce((a, b) => a + (b - mean) ** 2, 0) /
-            (misses.length - 1);
+      const keys = rounds.reduce((a, r) => a + r.keys, 0);
+      const misses = rounds.reduce((a, r) => a + r.misses, 0);
+      const rate = misses / keys;
+      // cluster-robust standard error of a ratio, one cluster per round
+      const k = rounds.length;
+      const spread = rounds.reduce(
+        (a, r) => a + (r.misses - rate * r.keys) ** 2,
+        0,
+      );
+      const error = k < 2 ? 0 : Math.sqrt((spread * k) / (k - 1)) / keys;
       return {
         system,
-        rounds: rounds.length,
-        missRate: mean,
-        missRateError: Math.sqrt(variance / misses.length),
-        wpm: rounds.reduce((a, r) => a + r.wpm, 0) / rounds.length,
+        rounds: k,
+        keystrokes: keys,
+        misses,
+        missRate: rate * 100,
+        missRateError: error * 100,
       };
     })
     .sort((a, b) => b.missRate - a.missRate);

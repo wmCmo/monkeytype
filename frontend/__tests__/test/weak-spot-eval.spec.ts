@@ -86,32 +86,52 @@ describe("weak-spot-eval", () => {
     );
   });
 
-  it("compares systems by miss rate over their rounds", () => {
-    const round = (system: string | undefined, acc: number): LoggedResult => ({
-      t: 1,
-      mode: "words",
-      mode2: "25",
-      wpm: 80,
-      rawWpm: 82,
-      acc,
-      consistency: 70,
-      testDuration: 15,
-      language: "english_1k",
-      funbox: system === undefined ? [] : ["weakspot"],
-      valid: false,
-      system,
-    });
-    const comparison = getSystemComparison([
-      round("original", 98),
-      round("original", 96),
-      round("context", 94),
-      round("context", 92),
-      round(undefined, 50), // not a weakspot round: ignored
-    ]);
+  it("compares systems by misses per keystroke, matching keystrokes to rounds by time", () => {
+    const results: LoggedResult[] = [];
+    const keystrokes: LoggedKeystroke[] = [];
+    let now = 1_000_000;
+    // a round of `keys` keystrokes 100 ms apart, `misses` of them missed
+    const round = (
+      system: string | undefined,
+      keys: number,
+      misses: number,
+    ): void => {
+      const start = now;
+      for (let i = 0; i < keys; i++) {
+        keystrokes.push([now, "", "a", 100, i < misses ? 0 : 1]);
+        now += 100;
+      }
+      results.push({
+        t: now,
+        mode: "words",
+        mode2: "25",
+        wpm: 80,
+        rawWpm: 82,
+        acc: 100 - (100 * misses) / keys,
+        consistency: 70,
+        testDuration: (now - start) / 1000,
+        language: "english_1k",
+        funbox: system === undefined ? [] : ["weakspot"],
+        valid: false,
+        system,
+      });
+      now += 10_000; // a pause between rounds
+    };
+    round("original", 100, 2);
+    round("original", 2, 1); // failed after 2 keystrokes: 50% of a tiny round
+    round("context", 100, 6);
+    round("context", 100, 8);
+    round(undefined, 100, 50); // not a weakspot round: ignored
+
+    const comparison = getSystemComparison(results, keystrokes);
     expect(comparison.map((c) => c.system)).toEqual(["context", "original"]);
-    expect(comparison[0]?.missRate).toBeCloseTo(7);
-    expect(comparison[0]?.missRateError).toBeCloseTo(1);
-    expect(comparison[1]?.rounds).toBe(2);
+    const [context, original] = comparison;
+    expect(context?.missRate).toBeCloseTo(7); // 14 / 200
+    // averaged per round, "original" would be (2% + 50%) / 2 = 26%
+    expect(original?.missRate).toBeCloseTo((3 / 102) * 100);
+    expect(original?.rounds).toBe(2);
+    expect(original?.keystrokes).toBe(102);
+    expect(context?.missRateError).toBeGreaterThan(0);
   });
 
   it("dailyProgress groups by local day", () => {
