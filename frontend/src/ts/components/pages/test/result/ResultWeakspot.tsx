@@ -1,3 +1,4 @@
+import { Link } from "@tanstack/solid-router";
 import { createMemo, For, JSXElement, Show } from "solid-js";
 
 import { CompletedResult } from "../../../../states/test";
@@ -42,7 +43,8 @@ export function ResultWeakspot(props: Props): JSXElement {
       {(r) => (
         <div class="mb-4 grid justify-center gap-1 text-center">
           <div class="text-sub">
-            weakspot · <span class="text-text">{r().system}</span>
+            weakspot · <span class="text-text">{r().system}</span> ·{" "}
+            <Link to="/weakspot">dashboard</Link>
           </div>
           <Show
             when={r().targets.length > 0}

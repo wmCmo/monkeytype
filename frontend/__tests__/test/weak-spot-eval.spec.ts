@@ -1,11 +1,13 @@
 import { describe, it, expect } from "vitest";
 import {
   auc,
+  collapseAttempts,
   compareGroups,
   dailyProgress,
   evaluate,
   getSystemComparison,
   paceCaretGroup,
+  patternTrends,
   roundTargets,
   wordStats,
   worstSequences,
@@ -249,5 +251,38 @@ describe("weak-spot-eval", () => {
       misses: 1,
       wpm: 90,
     });
+  });
+
+  it("collapseAttempts merges stop-on-error retries into one attempt", () => {
+    const attempts = collapseAttempts([
+      [1000, "s", "t", 100, 0],
+      [1100, "s", "t", 100, 0],
+      [1200, "s", "t", 100, 1], // retries of the same "t": one missed attempt
+      [1300, "st", "a", 100, 1],
+      [9000, "s", "t", 100, 1], // a later "st": a new attempt
+    ]);
+    expect(attempts.map((a) => [a.before, a.expected, a.missed])).toEqual([
+      ["s", "t", true],
+      ["st", "a", false],
+      ["s", "t", false],
+    ]);
+  });
+
+  it("patternTrends tells improving pairs from stuck ones", () => {
+    const log: LoggedKeystroke[] = [];
+    let t = 0;
+    for (let i = 0; i < 40; i++) {
+      // "gn": missed in the first 20 tries, clean after; "sq": 1 in 4 throughout
+      log.push([(t += 5000), "g", "n", 100, i < 20 ? 0 : 1]);
+      log.push([(t += 5000), "s", "q", 100, i % 4 === 0 ? 0 : 1]);
+    }
+    const trends = new Map(patternTrends(log, 2).map((p) => [p.sequence, p]));
+    expect(trends.get("gn")).toMatchObject({
+      early: 1,
+      late: 0,
+      status: "improving",
+    });
+    expect(trends.get("sq")?.status).toBe("no clear change");
+    expect(trends.get("sq")?.late).toBeCloseTo(0.25);
   });
 });

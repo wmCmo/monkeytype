@@ -303,6 +303,10 @@ vi.mock(
   stubPage("SettingsPage"),
 );
 vi.mock("../../src/ts/components/pages/test/TestPage", stubPage("TestPage"));
+vi.mock(
+  "../../src/ts/components/pages/weakspot/WeakspotPage",
+  stubPage("WeakspotPage"),
+);
 
 // the real test logic pulls in the whole typing test (indexedDB, layouts...).
 // Leaving the test page just ends the test here: tests start a test (app.test),

@@ -27,6 +27,7 @@ import { ProfilePage } from "../components/pages/profile/ProfilePage";
 import { ProfileSearchPage } from "../components/pages/profile/ProfileSearchPage";
 import { SettingsPage } from "../components/pages/settings/SettingsPage";
 import { TestPage } from "../components/pages/test/TestPage";
+import { WeakspotPage } from "../components/pages/weakspot/WeakspotPage";
 import {
   getLeaderboardQueryOptions,
   getRankQueryOptions,
@@ -71,7 +72,8 @@ export type PageName =
   | "404"
   | "accountSettings"
   | "friends"
-  | "leaderboards";
+  | "leaderboards"
+  | "weakspot";
 
 declare module "@tanstack/solid-router" {
   // oxlint-disable-next-line typescript/consistent-type-definitions -- module augmentation needs an interface
@@ -293,6 +295,14 @@ const about = createRoute({
   },
 });
 
+// weakspot training dashboard: reads this browser's local weakspot log
+const weakspot = createRoute({
+  getParentRoute: () => userDataRoute,
+  path: "/weakspot",
+  staticData: { page: "weakspot" },
+  component: createRouterPage(WeakspotPage),
+});
+
 const settings = createRoute({
   getParentRoute: () => userDataRoute,
   path: "/settings",
@@ -421,5 +431,6 @@ export const routeTree = root.addChildren([
     profileSearch,
     profile,
     friends,
+    weakspot,
   ]),
 ]);

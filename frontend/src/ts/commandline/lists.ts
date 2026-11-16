@@ -13,6 +13,8 @@ import PresetsCommands from "./lists/presets";
 import FunboxCommands from "./lists/funbox";
 import ThemesCommands from "./lists/themes";
 import LoadChallengeCommands from "./lists/load-challenge";
+import { WeakspotCommands } from "./lists/weakspot";
+import { ThemeRatingCommands } from "./lists/theme-ratings";
 
 import { Config } from "../config/store";
 import { setConfig } from "../config/setters";
@@ -75,6 +77,7 @@ export const commands: CommandsSubgroup = {
     },
     ...QuoteFavoriteCommands,
     ...BailOutCommands,
+    ...WeakspotCommands,
     {
       id: "shareTestSettings",
       display: "Share test settings",
@@ -179,6 +182,7 @@ export const commands: CommandsSubgroup = {
       "flipTestColors",
       "colorfulMode",
       ...AddOrRemoveThemeToFavorite,
+      ...ThemeRatingCommands,
       ...CustomBackgroundCommands,
       "customBackgroundSize",
       ...CustomBackgroundFilterCommands,

@@ -11,6 +11,7 @@ import { debounce } from "throttle-debounce";
 import { CustomThemeColors, ThemeName } from "@monkeytype/schemas/configs";
 import { Theme, themes, ThemesList } from "../constants/themes";
 import { setThemeIndicator } from "../states/core";
+import { isThemeDisliked } from "../states/theme-ratings";
 import {
   cacheThemeColors,
   getRandomTheme,
@@ -181,8 +182,15 @@ async function changeThemeList(): Promise<void> {
   } else if (Config.randomTheme === "custom") {
     themesList = getCustomThemes().map((ct) => ct._id);
   }
+  // rated down with the footer's thumbs-down: never picked again
+  themesList = themesList.filter((t) => !isThemeDisliked(t));
   Arrays.shuffle(themesList);
   randomThemeIndex = 0;
+}
+
+/** Rebuild the random theme list, eg. after a theme was rated down. */
+export async function refreshRandomThemeList(): Promise<void> {
+  await changeThemeList();
 }
 
 export async function randomizeTheme(): Promise<void> {

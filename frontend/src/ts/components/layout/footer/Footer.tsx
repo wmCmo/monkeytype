@@ -8,6 +8,7 @@ import { Button } from "../../common/Button";
 import { isLoadingShown } from "../../core/PageSwitcher";
 import { Keytips } from "./Keytips";
 import { ThemeIndicator } from "./ThemeIndicator";
+import { ThemeRating } from "./ThemeRating";
 import { VersionButton } from "./VersionButton";
 
 export function Footer(): JSXElement {
@@ -103,6 +104,7 @@ export function Footer(): JSXElement {
           />
         </div>
         <div class="flex flex-col items-end text-right lg:flex-row">
+          <ThemeRating />
           <ThemeIndicator />
           <VersionButton />
         </div>

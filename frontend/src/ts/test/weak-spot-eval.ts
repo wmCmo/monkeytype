@@ -342,6 +342,103 @@ export function roundTargets(
     .slice(0, limit);
 }
 
+type Attempt = {
+  t: number;
+  before: string;
+  expected: string;
+  missed: boolean;
+};
+
+/**
+ * Keystrokes with stop-on-error retries merged: consecutive entries for the
+ * same letter in the same context, within 3 s, are one attempt, missed if any
+ * of them was.
+ */
+export function collapseAttempts(keystrokes: LoggedKeystroke[]): Attempt[] {
+  const attempts: (Attempt & { key: string })[] = [];
+  for (const [t, before, expected, , correct] of keystrokes) {
+    const key = `${before}|${expected}`;
+    const last = attempts[attempts.length - 1];
+    if (last?.key === key && last.missed && t - last.t < 3000) {
+      last.t = t;
+      continue;
+    }
+    attempts.push({ key, t, before, expected, missed: correct === 0 });
+  }
+  return attempts;
+}
+
+const isLetter = (c: string | undefined): boolean =>
+  c !== undefined && /^\p{L}$/u.test(c);
+
+/** The pair (order 2) or triple (3) a letter attempt belongs to, if any. */
+function sequenceOf(a: Attempt, order: 2 | 3): string | undefined {
+  if (!isLetter(a.expected)) return undefined;
+  const context = Array.from(a.before).slice(-(order - 1));
+  if (context.length < order - 1 || !context.every(isLetter)) return undefined;
+  return context.join("") + a.expected;
+}
+
+export type PatternTrend = {
+  sequence: string;
+  attempts: number;
+  /** miss rate over the first half of the attempts, 0-1 */
+  early: number;
+  /** miss rate over the second half */
+  late: number;
+  /** standard error of late - early */
+  error: number;
+  status: "improving" | "no clear change" | "worse";
+};
+
+/**
+ * For every pair or triple tried at least `minAttempts` times: its miss rate
+ * over the first half of the attempts against the second half. A change
+ * smaller than twice its standard error counts as "no clear change".
+ */
+export function patternTrends(
+  keystrokes: LoggedKeystroke[],
+  order: 2 | 3,
+  minAttempts = order === 2 ? 30 : 20,
+): PatternTrend[] {
+  const bySequence = new Map<string, Attempt[]>();
+  for (const a of collapseAttempts(keystrokes)) {
+    const sequence = sequenceOf(a, order);
+    if (sequence === undefined) continue;
+    const list = bySequence.get(sequence);
+    if (list === undefined) bySequence.set(sequence, [a]);
+    else list.push(a);
+  }
+  const rate = (list: Attempt[]): number =>
+    list.filter((a) => a.missed).length / list.length;
+  const trends: PatternTrend[] = [];
+  for (const [sequence, list] of bySequence) {
+    if (list.length < minAttempts) continue;
+    const half = Math.floor(list.length / 2);
+    const early = rate(list.slice(0, half));
+    const late = rate(list.slice(half));
+    const p = rate(list);
+    const error = Math.sqrt(
+      p * (1 - p) * (1 / half + 1 / (list.length - half)),
+    );
+    const diff = late - early;
+    trends.push({
+      sequence,
+      attempts: list.length,
+      early,
+      late,
+      error,
+      status:
+        diff < -2 * error
+          ? "improving"
+          : diff > 2 * error
+            ? "worse"
+            : "no clear change",
+    });
+  }
+  return trends;
+}
+
 /** Miss rate and median keystroke time per day, oldest first. */
 export function dailyProgress(
   keystrokes: LoggedKeystroke[],

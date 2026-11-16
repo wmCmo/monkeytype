@@ -301,8 +301,11 @@ export async function onInsertText(options: OnInsertTextParams): Promise<void> {
 
   // this needs to be called after event logging
   // scored against the target letter and the target letters before it, so a
-  // mistake counts against the letter the user meant to type, in its context
-  // (extra letters past the end of the word have no target and are skipped)
+  // mistake counts against the letter the user meant to type, in its context.
+  // The target includes the word's commit character, so the first extra
+  // letter after a word counts as a missed space; letters beyond that (and
+  // extras on the last word, which has no commit) have no target and are
+  // skipped
   const expectedChar = currentWord[testInput.length];
   if (expectedChar !== undefined) {
     WeakSpot.updateScore({
