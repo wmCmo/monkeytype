@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { Wordset } from "../../src/ts/test/wordset";
+import { WeakSpotModel } from "../../src/ts/test/weak-spot-model";
 
 const msSinceLastInput = vi.hoisted(() => ({ value: 100 as number | null }));
 
@@ -202,28 +203,42 @@ describe("weak-spot", () => {
     random.mockRestore();
   });
 
-  it("the original system averages a word's letters, the others take its weakest spot", async () => {
+  it("rotates only systems that take a word's weakest spot", async () => {
     const ws = await load();
+    expect(Object.keys(ws.selectionSystems).sort()).toEqual([
+      "context",
+      "context+movement",
+    ]);
+    for (const options of Object.values(ws.selectionSystems)) {
+      expect(options.aggregate ?? "max").toBe("max");
+    }
+  });
+
+  it("the mean aggregate (the retired original system) averages a word's letters", () => {
+    const model = new WeakSpotModel({ context: false, motion: false });
     for (let n = 0; n < 30; n++) {
-      type(ws, "zoo", { wrongAt: [0] }); // "z" always missed, "o" clean
-      type(ws, "qq", { slowAt: [0, 1] }); // "q" always slow, never missed
+      // "z" always missed, "o" clean, "q" always slow but never missed
+      for (const [i, c] of Array.from("zoo").entries()) {
+        model.update({
+          before: "zoo".slice(0, i),
+          expected: c,
+          spacing: 100,
+          isCorrect: c !== "z",
+        });
+      }
+      model.update({
+        before: "",
+        expected: "q",
+        spacing: 400,
+        isCorrect: true,
+      });
     }
     // one missed "z" (~5100 ms) among 20 clean "o"s (~100 ms) averages ~340,
-    // under the always-slow "q" (400)
+    // under "q" (400); its weakest spot is far above
     const longWord = `z${"o".repeat(20)}`;
-    const random = vi.spyOn(Math, "random");
-    const pickWith = (system: string): string => {
-      const index = Object.keys(ws.selectionSystems).indexOf(system);
-      const share = Object.keys(ws.selectionSystems).length;
-      random.mockReturnValue((index + 0.5) / share);
-      const set = new Wordset([longWord, "qq"]);
-      const word = ws.getWord(set, 0);
-      expect(ws.getCurrentSystem()).toBe(system);
-      return word;
-    };
-    expect(pickWith("original")).toBe("qq");
-    expect(pickWith("context")).toBe(longWord);
-    random.mockRestore();
+    const mean = { context: false, motion: false, aggregate: "mean" } as const;
+    expect(model.score(longWord, mean)).toBeLessThan(model.score("qq", mean));
+    expect(model.score(longWord)).toBeGreaterThan(model.score("qq"));
   });
 
   it("keeps scores across a reload", async () => {

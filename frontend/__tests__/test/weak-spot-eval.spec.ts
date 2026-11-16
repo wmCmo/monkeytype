@@ -1,9 +1,14 @@
 import { describe, it, expect } from "vitest";
 import {
   auc,
+  compareGroups,
   dailyProgress,
   evaluate,
   getSystemComparison,
+  paceCaretGroup,
+  roundTargets,
+  wordStats,
+  worstSequences,
 } from "../../src/ts/test/weak-spot-eval";
 import { LoggedKeystroke, LoggedResult } from "../../src/ts/test/weak-spot-log";
 
@@ -139,5 +144,110 @@ describe("weak-spot-eval", () => {
     const [day] = dailyProgress(log);
     expect(day?.keystrokes).toBe(4);
     expect(day?.missRate).toBe(0.5);
+  });
+
+  it("wordStats rebuilds words, counting a retried letter once in the word", () => {
+    const t = 1;
+    const log: LoggedKeystroke[] = [
+      // "list" with the "t" missed twice, then right (stop on error)
+      [t, "", "l", 100, 1],
+      [t, "l", "i", 100, 1],
+      [t, "li", "s", 100, 1],
+      [t, "is", "t", 100, 0],
+      [t, "is", "t", 100, 0],
+      [t, "is", "t", 100, 1],
+      [t, "st", " ", 100, 1],
+      // "list" again, clean
+      [t, "", "l", 100, 1],
+      [t, "l", "i", 100, 1],
+      [t, "li", "s", 100, 1],
+      [t, "is", "t", 100, 1],
+      [t, "st", " ", 100, 1],
+      // "lis" cut off by a restart: dropped
+      [t, "", "l", 100, 1],
+      [t, "l", "i", 100, 0],
+    ];
+    const stats = wordStats(log);
+    expect(stats).toHaveLength(1);
+    expect(stats[0]).toEqual({
+      word: "list",
+      typed: 2,
+      misses: 2,
+      missedAt: { st: 2 },
+    });
+  });
+
+  it("worstSequences skips rare and word-start sequences", () => {
+    const worst = worstSequences([
+      ["bt", 3000, 10],
+      [" a", 4000, 10], // word start
+      ["ve", 900, 20],
+      ["zq", 5000, 2], // too rare
+    ]);
+    expect(worst.map((w) => w.sequence)).toEqual(["bt", "ve"]);
+    expect(worst[0]?.missRate).toBeCloseTo((3000 - 120) / 5000);
+  });
+
+  it("roundTargets lists the weak pairs a round hit, with misses", () => {
+    const log: LoggedKeystroke[] = [
+      [1, "", "s", 100, 1],
+      [1, "s", "t", 100, 0], // "st" missed, then retried
+      [1, "s", "t", 100, 1],
+      [1, "st", "a", 100, 1],
+      [1, "ta", "y", 100, 1],
+      [1, "", "b", 100, 1],
+      [1, "b", "t", 100, 1], // "bt" only once: below the minimum
+      [1, "", "l", 100, 1],
+      [1, "l", "i", 100, 1],
+      [1, "li", "s", 100, 1],
+      [1, "is", "t", 100, 1],
+    ];
+    expect(roundTargets(log, ["st", "bt", "ve"])).toEqual([
+      { sequence: "st", attempts: 3, misses: 1 },
+    ]);
+  });
+
+  it("groups weakspot rounds by pace caret", () => {
+    const base: LoggedResult = {
+      t: 2000,
+      mode: "words",
+      mode2: "25",
+      wpm: 90,
+      rawWpm: 92,
+      acc: 95,
+      consistency: 80,
+      testDuration: 1,
+      language: "english_1k",
+      funbox: ["weakspot"],
+      valid: true,
+      system: "context",
+    };
+    const caret = (paceCaret: string, paceSpeed?: number): LoggedResult => ({
+      ...base,
+      settings: { paceCaret, paceSpeed, stopOnError: "letter" },
+    });
+    expect(paceCaretGroup(caret("custom", 90))).toBe("caret 90");
+    expect(paceCaretGroup(caret("off"))).toBe("caret off");
+    expect(paceCaretGroup(base)).toBeUndefined(); // before settings were logged
+    expect(
+      paceCaretGroup({ ...caret("off"), system: undefined }),
+    ).toBeUndefined();
+
+    const keystrokes: LoggedKeystroke[] = [
+      [1500, "", "a", 100, 1],
+      [1600, "a", "b", 100, 0],
+    ];
+    const [group] = compareGroups(
+      [caret("custom", 100)],
+      keystrokes,
+      paceCaretGroup,
+    );
+    expect(group).toMatchObject({
+      group: "caret 100",
+      rounds: 1,
+      keystrokes: 2,
+      misses: 1,
+      wpm: 90,
+    });
   });
 });

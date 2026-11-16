@@ -45,6 +45,8 @@ export type StoredEntry = [string, number, number];
 export type ModelOptions = {
   /** learn pairs and triples, not only single letters */
   context: boolean;
+  /** with context: longest context used, 2 = pairs only, 3 = pairs and triples (default) */
+  maxOrder?: 2 | 3;
   /** adjust for the finger movement into each letter */
   motion: boolean;
   /**
@@ -199,7 +201,7 @@ export class WeakSpotModel {
       : uniScore.average;
     if (!options.context) return letter;
     const biEstimate = backoff(this.scores[2].get(bi), letter);
-    if (tri === undefined) return biEstimate;
+    if (tri === undefined || options.maxOrder === 2) return biEstimate;
     return backoff(this.scores[3].get(tri), biEstimate);
   }
 

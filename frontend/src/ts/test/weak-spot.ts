@@ -89,7 +89,17 @@ function ensureLoaded(): void {
   }
 }
 
+/** Current scores in the stored format, for syncing and inspection. */
+export function getScoresSnapshot(): StoredScores {
+  ensureLoaded();
+  return buildStore();
+}
+
 function save(): void {
+  weakspotLS.set(buildStore());
+}
+
+function buildStore(): StoredScores {
   const entries: [Order, string, Score][] = [];
   for (const order of [1, 2, 3] as const) {
     for (const [key, score] of model.scores[order]) {
@@ -113,7 +123,7 @@ function save(): void {
   for (const [key, score] of model.motionScores) {
     store.m.push([key, score.average, score.count]);
   }
-  weakspotLS.set(store);
+  return store;
 }
 
 function scheduleSave(): void {
@@ -152,9 +162,13 @@ export function score(word: string): number {
 // random, the result log records which, and getSystemComparison() in
 // weak-spot-eval.ts compares how often each made you miss. All of them score
 // with the same learned data; only how they read it differs.
+//
+// Retired: "original" (Monkeytype's original weakspot - single letters, word =
+// average letter, { context: false, motion: false, aggregate: "mean" }). In
+// the comparison it made its user miss least (3.3% vs 4.3-4.7% per keystroke
+// over ~3,500 keystrokes) by favouring short easy words: rounds of ~115
+// keystrokes against ~160-180 for the others.
 export const selectionSystems: Record<string, ModelOptions> = {
-  // Monkeytype's original weakspot: single letters, word = average letter
-  original: { context: false, motion: false, aggregate: "mean" },
   // pairs and triples, word = weakest spot
   context: { context: true, motion: false },
   // ... plus finger movement

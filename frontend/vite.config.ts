@@ -28,6 +28,7 @@ import solidPlugin from "vite-plugin-solid";
 import devtools from "solid-devtools/vite";
 import tailwindcss from "@tailwindcss/vite";
 import { workspacePackagesAlias } from "./vite-plugins/workspace-packages";
+import { weakspotSync } from "./vite-plugins/weakspot-sync";
 
 function getFontsConfig(): string {
   return `\n${Object.keys(Fonts)
@@ -116,6 +117,7 @@ function getPlugins({
       overlay: isDevelopment,
     }),
     Inspect(),
+    weakspotSync(),
   ];
 
   const prodPlugins: PluginOption[] = [

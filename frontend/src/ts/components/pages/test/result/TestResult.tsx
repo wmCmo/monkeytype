@@ -35,6 +35,7 @@ import { ResultChart } from "./ResultChart";
 import { ResultMainStats } from "./ResultMainStats";
 import { ResultReplay } from "./ResultReplay";
 import { ResultSecondaryStats } from "./ResultSecondaryStats";
+import { ResultWeakspot } from "./ResultWeakspot";
 import { ResultWordsHistory } from "./ResultWordsHistory";
 
 export function TestResult(): JSXElement {
@@ -94,6 +95,7 @@ export function TestResult(): JSXElement {
                 />
               </div>
               <ResultSecondaryStats result={test().result} />
+              <ResultWeakspot result={test().result} />
               <ResultWordsHistory eventLog={test().eventLog} />
               <ResultReplay />
               <RetrySavingButton />

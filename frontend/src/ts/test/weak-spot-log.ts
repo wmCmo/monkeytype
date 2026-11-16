@@ -37,6 +37,17 @@ const ResultSchema = z.object({
   valid: z.boolean(),
   /** the weakspot word-picking system that ran this round, if weakspot was on */
   system: z.string().optional(),
+  /** practice settings in effect (logged from 16 Nov 2026 on) */
+  settings: z
+    .object({
+      paceCaret: z.string(),
+      /** custom pace caret speed, when paceCaret is "custom" */
+      paceSpeed: z.number().optional(),
+      stopOnError: z.string(),
+      /** minimum accuracy %, when on */
+      minAcc: z.number().optional(),
+    })
+    .optional(),
 });
 export type LoggedResult = z.infer<typeof ResultSchema>;
 

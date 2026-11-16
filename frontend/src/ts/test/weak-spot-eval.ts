@@ -1,5 +1,10 @@
-import { LoggedKeystroke, LoggedResult } from "./weak-spot-log";
-import { ModelOptions, WeakSpotModel } from "./weak-spot-model";
+import type { LoggedKeystroke, LoggedResult } from "./weak-spot-log";
+import {
+  ModelOptions,
+  StoredEntry,
+  WeakSpotModel,
+  incorrectPenalty,
+} from "./weak-spot-model";
 
 // Compares weak-spot model variants on a keystroke log by replaying it in
 // order: before each keystroke every variant predicts its cost from what it
@@ -121,10 +126,32 @@ export function getSystemComparison(
   results: LoggedResult[],
   keystrokes: LoggedKeystroke[],
 ): SystemComparison[] {
-  const bySystem = new Map<string, { keys: number; misses: number }[]>();
+  return compareGroups(results, keystrokes, (r) => r.system).map(
+    ({ group, ...rest }) => ({ system: group, ...rest }),
+  );
+}
+
+export type GroupComparison = Omit<SystemComparison, "system"> & {
+  group: string;
+  /** average wpm over the group's rounds */
+  wpm: number;
+};
+
+/**
+ * Rounds grouped by `groupOf` (undefined = left out), compared by misses per
+ * keystroke as in getSystemComparison. Sorted by miss rate, highest first.
+ */
+export function compareGroups(
+  results: LoggedResult[],
+  keystrokes: LoggedKeystroke[],
+  groupOf: (result: LoggedResult) => string | undefined,
+): GroupComparison[] {
+  type Round = { keys: number; misses: number; wpm: number };
+  const byGroup = new Map<string, Round[]>();
   for (const r of results) {
     // failed rounds count too
-    if (r.system === undefined) continue;
+    const group = groupOf(r);
+    if (group === undefined) continue;
     const start = r.t - r.testDuration * 1000 - roundStartSlackMs;
     let keys = 0;
     let misses = 0;
@@ -134,12 +161,13 @@ export function getSystemComparison(
       if (k[4] === 0) misses++;
     }
     if (keys === 0) continue;
-    const list = bySystem.get(r.system);
-    if (list === undefined) bySystem.set(r.system, [{ keys, misses }]);
-    else list.push({ keys, misses });
+    const round = { keys, misses, wpm: r.wpm };
+    const list = byGroup.get(group);
+    if (list === undefined) byGroup.set(group, [round]);
+    else list.push(round);
   }
-  return [...bySystem]
-    .map(([system, rounds]) => {
+  return [...byGroup]
+    .map(([group, rounds]) => {
       const keys = rounds.reduce((a, r) => a + r.keys, 0);
       const misses = rounds.reduce((a, r) => a + r.misses, 0);
       const rate = misses / keys;
@@ -151,15 +179,167 @@ export function getSystemComparison(
       );
       const error = k < 2 ? 0 : Math.sqrt((spread * k) / (k - 1)) / keys;
       return {
-        system,
+        group,
         rounds: k,
         keystrokes: keys,
         misses,
         missRate: rate * 100,
         missRateError: error * 100,
+        wpm: rounds.reduce((a, r) => a + r.wpm, 0) / k,
       };
     })
     .sort((a, b) => b.missRate - a.missRate);
+}
+
+/**
+ * A weakspot round's pace caret as a group name ("caret 90", "caret off",
+ * "caret pb"), or undefined for other tests and rounds logged before
+ * settings were recorded.
+ */
+export function paceCaretGroup(result: LoggedResult): string | undefined {
+  if (result.system === undefined || result.settings === undefined) {
+    return undefined;
+  }
+  const { paceCaret, paceSpeed } = result.settings;
+  return paceCaret === "custom" && paceSpeed !== undefined
+    ? `caret ${paceSpeed}`
+    : `caret ${paceCaret}`;
+}
+
+export type WordStat = {
+  word: string;
+  /** times the word was typed to the end */
+  typed: number;
+  misses: number;
+  /** the letter missed, after the one before it ("st" = the "t" after "s"); "␣" = the space */
+  missedAt: Record<string, number>;
+};
+
+/**
+ * Words rebuilt from the keystroke log: a word starts at a keystroke with no
+ * letters before it and ends at a correct space. A retry of the same letter
+ * (stop on error) counts its miss but isn't added to the word twice. Words
+ * cut off by a restart are dropped. Approximate: a missed space can merge two
+ * words into one.
+ */
+export function wordStats(keystrokes: LoggedKeystroke[]): WordStat[] {
+  const stats = new Map<string, WordStat>();
+  type Current = { word: string; misses: number; missedAt: string[] };
+  let current: Current | undefined;
+  let retryKey: string | undefined;
+  const finish = (complete: boolean): void => {
+    if (complete && current !== undefined && current.word.length > 0) {
+      const stat = stats.get(current.word) ?? {
+        word: current.word,
+        typed: 0,
+        misses: 0,
+        missedAt: {},
+      };
+      stat.typed++;
+      stat.misses += current.misses;
+      for (const at of current.missedAt) {
+        stat.missedAt[at] = (stat.missedAt[at] ?? 0) + 1;
+      }
+      stats.set(current.word, stat);
+    }
+    current = undefined;
+    retryKey = undefined;
+  };
+  for (const [, before, expected, , correct] of keystrokes) {
+    const key = `${before}|${expected}`;
+    const isRetry = retryKey === key;
+    if (before === "" && expected !== " " && !isRetry) {
+      finish(false);
+      current = { word: "", misses: 0, missedAt: [] };
+    }
+    current ??= { word: "", misses: 0, missedAt: [] };
+    if (expected === " ") {
+      if (correct === 1) {
+        finish(true);
+      } else {
+        current.misses++;
+        current.missedAt.push("␣");
+        retryKey = key;
+      }
+      continue;
+    }
+    if (correct === 0) {
+      current.misses++;
+      current.missedAt.push(`${before.slice(-1)}${expected}`);
+      retryKey = key;
+    } else {
+      retryKey = undefined;
+    }
+    if (!isRetry) current.word += expected;
+  }
+  return [...stats.values()];
+}
+
+export type WeakSequence = {
+  sequence: string;
+  /** current score: average ms, plus 5000 per miss */
+  score: number;
+  count: number;
+  /** rough share of attempts missed, from the score */
+  missRate: number;
+};
+
+/**
+ * The worst learned sequences of one length (2 = pairs, 3 = triples) from
+ * stored scores, ignoring ones seen fewer than `minCount` times and ones that
+ * start at a word boundary.
+ */
+export function worstSequences(
+  entries: StoredEntry[],
+  options: { minCount?: number; limit?: number } = {},
+): WeakSequence[] {
+  const minCount = options.minCount ?? 5;
+  return entries
+    .filter(([key, , count]) => count >= minCount && !key.includes(" "))
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, options.limit ?? 10)
+    .map(([sequence, score, count]) => ({
+      sequence,
+      score,
+      count,
+      missRate: Math.max(0, Math.min(1, (score - 120) / incorrectPenalty)),
+    }));
+}
+
+export type RoundTarget = {
+  sequence: string;
+  /** times the round asked for this pair (retries after a miss included) */
+  attempts: number;
+  misses: number;
+};
+
+/**
+ * Which of the weakest pairs a round's keystrokes hit, and how they went:
+ * the pairs in `weakPairs` that came up at least twice, most frequent first.
+ */
+export function roundTargets(
+  roundKeystrokes: LoggedKeystroke[],
+  weakPairs: string[],
+  limit = 5,
+): RoundTarget[] {
+  const wanted = new Set(weakPairs);
+  const targets = new Map<string, RoundTarget>();
+  for (const [, before, expected, , correct] of roundKeystrokes) {
+    const pair = `${before.slice(-1)}${expected}`;
+    if (!wanted.has(pair)) continue;
+    const target = targets.get(pair) ?? {
+      sequence: pair,
+      attempts: 0,
+      misses: 0,
+    };
+    target.attempts++;
+    if (correct === 0) target.misses++;
+    targets.set(pair, target);
+  }
+  return [...targets.values()]
+    .filter((t) => t.attempts >= 2)
+    .sort((a, b) => b.attempts - a.attempts)
+    .slice(0, limit);
 }
 
 /** Miss rate and median keystroke time per day, oldest first. */

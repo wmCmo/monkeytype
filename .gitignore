@@ -141,3 +141,6 @@ frontend/.env.sentry-build-plugin
 keylogs
 frontend/scripts/keylog-report.ts
 .scratch/
+
+# weakspot data synced from the dev server (personal typing data)
+frontend/.weakspot/
