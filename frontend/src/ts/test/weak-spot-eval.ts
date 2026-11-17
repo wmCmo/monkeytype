@@ -314,27 +314,31 @@ export type RoundTarget = {
 };
 
 /**
- * Which of the weakest pairs a round's keystrokes hit, and how they went:
- * the pairs in `weakPairs` that came up at least twice, most frequent first.
+ * Which of the given patterns - pairs ("bt") or single letters ("q") - a
+ * round's keystrokes hit, and how they went: the ones that came up at least
+ * twice, most frequent first.
  */
 export function roundTargets(
   roundKeystrokes: LoggedKeystroke[],
-  weakPairs: string[],
+  patterns: string[],
   limit = 5,
 ): RoundTarget[] {
-  const wanted = new Set(weakPairs);
+  const wanted = new Set(patterns);
   const targets = new Map<string, RoundTarget>();
   for (const [, before, expected, , correct] of roundKeystrokes) {
-    const pair = `${before.slice(-1)}${expected}`;
-    if (!wanted.has(pair)) continue;
-    const target = targets.get(pair) ?? {
-      sequence: pair,
-      attempts: 0,
-      misses: 0,
-    };
-    target.attempts++;
-    if (correct === 0) target.misses++;
-    targets.set(pair, target);
+    // a Set: at a word start the pair key is the letter itself
+    const keys = new Set([`${before.slice(-1)}${expected}`, expected]);
+    for (const key of keys) {
+      if (!wanted.has(key)) continue;
+      const target = targets.get(key) ?? {
+        sequence: key,
+        attempts: 0,
+        misses: 0,
+      };
+      target.attempts++;
+      if (correct === 0) target.misses++;
+      targets.set(key, target);
+    }
   }
   return [...targets.values()]
     .filter((t) => t.attempts >= 2)

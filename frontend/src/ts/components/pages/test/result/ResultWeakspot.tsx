@@ -7,6 +7,7 @@ import {
   getScoresSnapshot,
 } from "../../../../test/weak-spot";
 import { roundTargets, worstSequences } from "../../../../test/weak-spot-eval";
+import { getActiveFocusPatterns } from "../../../../test/weak-spot-focus-state";
 import { getLoggedKeystrokes } from "../../../../test/weak-spot-log";
 import { cn } from "../../../../utils/cn";
 
@@ -18,22 +19,33 @@ type Props = {
 const roundStartSlackMs = 500;
 
 /**
- * After a weakspot round: which system picked the words, which of your
- * weakest letter pairs the round drilled, and how you did on each.
+ * After a weakspot or focus round: which system picked the words (or which
+ * patterns the focus drill is on), the weak patterns the round drilled, and
+ * how you did on each.
  */
 export function ResultWeakspot(props: Props): JSXElement {
   const round = createMemo(() => {
-    if (!props.result.funbox.includes("weakspot")) return null;
+    const isWeakspot = props.result.funbox.includes("weakspot");
+    const focus = getActiveFocusPatterns();
+    if (!isWeakspot && focus === undefined) return null;
     const end = props.result.timestamp;
     const start = end - props.result.testDuration * 1000 - roundStartSlackMs;
     const keystrokes = getLoggedKeystrokes().filter(
       (k) => k[0] >= start && k[0] <= end,
     );
+    if (focus !== undefined) {
+      return {
+        label: "focus",
+        detail: focus.join(" "),
+        targets: roundTargets(keystrokes, focus, focus.length),
+      };
+    }
     const weakPairs = worstSequences(getScoresSnapshot()[2], {
       limit: 15,
     }).map((s) => s.sequence);
     return {
-      system: getCurrentSystem(),
+      label: "weakspot",
+      detail: getCurrentSystem(),
       targets: roundTargets(keystrokes, weakPairs),
     };
   });
@@ -43,7 +55,7 @@ export function ResultWeakspot(props: Props): JSXElement {
       {(r) => (
         <div class="mb-4 grid justify-center gap-1 text-center">
           <div class="text-sub">
-            weakspot · <span class="text-text">{r().system}</span> ·{" "}
+            {r().label} · <span class="text-text">{r().detail}</span> ·{" "}
             <Link to="/weakspot">dashboard</Link>
           </div>
           <Show

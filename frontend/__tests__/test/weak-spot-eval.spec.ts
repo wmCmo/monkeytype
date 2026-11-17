@@ -285,4 +285,20 @@ describe("weak-spot-eval", () => {
     expect(trends.get("sq")?.status).toBe("no clear change");
     expect(trends.get("sq")?.late).toBeCloseTo(0.25);
   });
+
+  it("roundTargets counts single letters too, once per keystroke", () => {
+    const log: LoggedKeystroke[] = [
+      [1, "", "q", 100, 0], // word-start "q": pair key is "q" too - counted once
+      [1, "", "q", 100, 1],
+      [1, "q", "u", 100, 1],
+      [1, "s", "q", 100, 1], // "q" inside a word
+      [1, "", "b", 100, 1],
+      [1, "b", "t", 100, 0],
+      [1, "b", "t", 100, 1],
+    ];
+    expect(roundTargets(log, ["q", "bt"], 4)).toEqual([
+      { sequence: "q", attempts: 3, misses: 1 },
+      { sequence: "bt", attempts: 2, misses: 1 },
+    ]);
+  });
 });
