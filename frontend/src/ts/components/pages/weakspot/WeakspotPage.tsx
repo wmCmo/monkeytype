@@ -6,6 +6,7 @@ import { getScoresSnapshot } from "../../../test/weak-spot";
 import {
   compareGroups,
   dailyProgress,
+  focusSummary,
   getSystemComparison,
   paceCaretGroup,
   patternTrends,
@@ -57,6 +58,7 @@ export function WeakspotPage(): JSXElement {
     .filter((t) => t.status === "improving")
     .sort((a, b) => a.late - a.early - (b.late - b.early))
     .slice(0, 10);
+  const focus = focusSummary(results, keystrokes);
   const words = wordStats(keystrokes)
     .filter((w) => w.typed >= 4 && w.misses > 0)
     .sort((a, b) => b.misses / b.typed - a.misses / a.typed)
@@ -251,6 +253,36 @@ export function WeakspotPage(): JSXElement {
               </table>
             </Show>
           </div>
+        </section>
+
+        <section>
+          <h3 class="pb-2 text-xl text-sub">focus drill</h3>
+          <div class="pb-2 text-sm text-sub">
+            stubborn patterns drilled slowly (command line: focus); miss rate
+            inside focus rounds, first half → second half
+          </div>
+          <Show
+            when={focus.length > 0}
+            fallback={<div class="text-sub">no focus rounds yet</div>}
+          >
+            <table class="w-full">
+              <tbody>
+                <For each={focus}>
+                  {(f) => (
+                    <tr>
+                      <td class="text-main">{f.pattern}</td>
+                      <td>
+                        {pct(f.early)} → {pct(f.late)}
+                      </td>
+                      <td class="text-right text-sub">
+                        {f.attempts}× in {f.rounds} rounds
+                      </td>
+                    </tr>
+                  )}
+                </For>
+              </tbody>
+            </table>
+          </Show>
         </section>
 
         <section>

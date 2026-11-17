@@ -372,8 +372,9 @@ const isLetter = (c: string | undefined): boolean =>
   c !== undefined && /^\p{L}$/u.test(c);
 
 /** The pair (order 2) or triple (3) a letter attempt belongs to, if any. */
-function sequenceOf(a: Attempt, order: 2 | 3): string | undefined {
+function sequenceOf(a: Attempt, order: 1 | 2 | 3): string | undefined {
   if (!isLetter(a.expected)) return undefined;
+  if (order === 1) return a.expected;
   const context = Array.from(a.before).slice(-(order - 1));
   if (context.length < order - 1 || !context.every(isLetter)) return undefined;
   return context.join("") + a.expected;
@@ -392,14 +393,15 @@ export type PatternTrend = {
 };
 
 /**
- * For every pair or triple tried at least `minAttempts` times: its miss rate
+ * For every letter (order 1), pair (2) or triple (3) tried at least
+ * `minAttempts` times: its miss rate
  * over the first half of the attempts against the second half. A change
  * smaller than twice its standard error counts as "no clear change".
  */
 export function patternTrends(
   keystrokes: LoggedKeystroke[],
-  order: 2 | 3,
-  minAttempts = order === 2 ? 30 : 20,
+  order: 1 | 2 | 3,
+  minAttempts = order === 1 ? 60 : order === 2 ? 30 : 20,
 ): PatternTrend[] {
   const bySequence = new Map<string, Attempt[]>();
   for (const a of collapseAttempts(keystrokes)) {
@@ -437,6 +439,56 @@ export function patternTrends(
     });
   }
   return trends;
+}
+
+export type FocusPatternSummary = {
+  pattern: string;
+  /** focus rounds that drilled it */
+  rounds: number;
+  attempts: number;
+  /** miss rate over the first / second half of its attempts in focus rounds */
+  early: number;
+  late: number;
+};
+
+/**
+ * How each pattern drilled by focus rounds has gone inside them: attempts
+ * (retries merged) in the focus rounds' time windows, first half against
+ * second half. Patterns are letters ("q") or pairs ("bt").
+ */
+export function focusSummary(
+  results: LoggedResult[],
+  keystrokes: LoggedKeystroke[],
+): FocusPatternSummary[] {
+  const byPattern = new Map<string, { rounds: number; missed: boolean[] }>();
+  for (const r of results) {
+    if (r.focus === undefined) continue;
+    const start = r.t - r.testDuration * 1000 - roundStartSlackMs;
+    const attempts = collapseAttempts(
+      keystrokes.filter((k) => k[0] >= start && k[0] <= r.t),
+    );
+    for (const pattern of r.focus) {
+      const order = Array.from(pattern).length === 1 ? 1 : 2;
+      const entry = byPattern.get(pattern) ?? { rounds: 0, missed: [] };
+      entry.rounds++;
+      for (const a of attempts) {
+        if (sequenceOf(a, order) === pattern) entry.missed.push(a.missed);
+      }
+      byPattern.set(pattern, entry);
+    }
+  }
+  const rate = (l: boolean[]): number =>
+    l.length === 0 ? 0 : l.filter(Boolean).length / l.length;
+  return [...byPattern].map(([pattern, { rounds, missed }]) => {
+    const half = Math.floor(missed.length / 2);
+    return {
+      pattern,
+      rounds,
+      attempts: missed.length,
+      early: rate(missed.slice(0, half)),
+      late: rate(missed.slice(half)),
+    };
+  });
 }
 
 /** Miss rate and median keystroke time per day, oldest first. */

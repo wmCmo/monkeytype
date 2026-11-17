@@ -11,6 +11,7 @@ import {
   dailyProgress,
   paceCaretGroup,
   evaluate,
+  focusSummary,
   getSystemComparison,
   wordStats,
   worstSequences,
@@ -91,6 +92,15 @@ if (byCaret.length === 0) {
 for (const c of byCaret) {
   console.log(
     `${c.group.padEnd(12)} ${String(c.rounds).padStart(3)} rounds  ${c.wpm.toFixed(0).padStart(3)} wpm  miss ${c.missRate.toFixed(1)}% ± ${c.missRateError.toFixed(1)}`,
+  );
+}
+
+heading("Focus drill (stubborn patterns, inside focus rounds)");
+const focus = focusSummary(results, keystrokes);
+if (focus.length === 0) console.log("none yet");
+for (const f of focus) {
+  console.log(
+    `${f.pattern.padEnd(4)} ${String(f.rounds).padStart(3)} rounds  ${String(f.attempts).padStart(4)} tries  early ${pct(f.early)} → late ${pct(f.late)}`,
   );
 }
 

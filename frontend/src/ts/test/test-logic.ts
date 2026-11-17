@@ -30,6 +30,7 @@ import * as TodayTracker from "./today-tracker";
 import * as WeakSpotLog from "./weak-spot-log";
 import * as WeakSpot from "./weak-spot";
 import * as WeakSpotSync from "./weak-spot-sync";
+import * as WeakSpotFocusState from "./weak-spot-focus-state";
 import * as ChallengeContoller from "../controllers/challenge-controller";
 import { clearQuoteStats } from "../states/quote-rate";
 import {
@@ -1019,6 +1020,7 @@ export async function finish(difficultyFailed = false): Promise<void> {
     system: completedEvent.funbox.includes("weakspot")
       ? WeakSpot.getCurrentSystem()
       : undefined,
+    focus: WeakSpotFocusState.getActiveFocusPatterns(),
     settings: {
       paceCaret: Config.paceCaret,
       paceSpeed:

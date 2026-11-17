@@ -37,6 +37,8 @@ const ResultSchema = z.object({
   valid: z.boolean(),
   /** the weakspot word-picking system that ran this round, if weakspot was on */
   system: z.string().optional(),
+  /** the patterns a focus drill round drilled */
+  focus: z.array(z.string()).optional(),
   /** practice settings in effect (logged from 16 Nov 2026 on) */
   settings: z
     .object({
