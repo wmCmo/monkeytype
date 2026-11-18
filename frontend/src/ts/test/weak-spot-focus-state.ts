@@ -8,14 +8,23 @@ import * as CustomText from "./custom-text";
 // with them, and the weakspot drill's pace caret speed to return to (focus
 // drills run slower, on the same custom speed setting).
 
-let active: { patterns: string[]; text: string } | null = null;
+// Kept in localStorage, not module memory: the custom text survives a page
+// reload, so the focus it belongs to has to as well (otherwise reloaded focus
+// rounds run untagged and without the result card).
+const activeFocusLS = new LocalStorageWithSchema({
+  key: "weakspotActiveFocus",
+  schema: z
+    .object({ patterns: z.array(z.string()), text: z.string() })
+    .nullable(),
+  fallback: null,
+});
 
 export function setActiveFocus(patterns: string[], words: string[]): void {
-  active = { patterns, text: words.join(" ") };
+  activeFocusLS.set({ patterns, text: words.join(" ") });
 }
 
 export function clearActiveFocus(): void {
-  active = null;
+  activeFocusLS.set(null);
 }
 
 /**
@@ -23,6 +32,7 @@ export function clearActiveFocus(): void {
  * (custom mode, same text), else undefined.
  */
 export function getActiveFocusPatterns(): string[] | undefined {
+  const active = activeFocusLS.get();
   if (active === null || Config.mode !== "custom") return undefined;
   if (CustomText.getText().join(" ") !== active.text) return undefined;
   return active.patterns;
