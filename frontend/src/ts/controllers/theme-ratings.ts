@@ -6,6 +6,7 @@ import { showNoticeNotification } from "../states/notifications";
 import { getRandomTheme } from "../states/theme";
 import { getDislikedThemes, setDislikedThemes } from "../states/theme-ratings";
 import { randomizeTheme, refreshRandomThemeList } from "./theme-controller";
+import { syncWeakspotData } from "../test/weak-spot-sync";
 
 // Rating the theme random theme picked: thumbs-up adds it to the favourite
 // themes, thumbs-down hides it from random theme for good and moves on.
@@ -30,6 +31,7 @@ export function likeCurrentTheme(): void {
     setConfig("favThemes", [...Config.favThemes, theme]);
   }
   showNoticeNotification(`liked ${display(theme)}`);
+  void syncWeakspotData();
 }
 
 export async function dislikeCurrentTheme(): Promise<void> {
@@ -43,6 +45,7 @@ export async function dislikeCurrentTheme(): Promise<void> {
     );
   }
   showNoticeNotification(`${display(theme)} won't come up again`);
+  void syncWeakspotData();
   await refreshRandomThemeList();
   await randomizeTheme();
 }

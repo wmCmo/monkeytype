@@ -20,7 +20,8 @@ import { Command } from "../types";
 // test, so no setup has to be rebuilt by hand in between.
 
 /**
- * Weakspot drill: english 1k, 25 words, weakspot funbox, custom pace caret
+ * Weakspot drill: english 5k (1k had a single "bt" word, so weakspot kept
+ * serving the same few words), 25 words, weakspot funbox, custom pace caret
  * (at the speed from before any focus drill, else the last custom speed),
  * stop on error per letter, no minimum accuracy.
  */
@@ -28,7 +29,7 @@ export function applyWeakspotDrill(): void {
   clearActiveFocus();
   const drillPace = takeDrillPace();
   if (drillPace !== null) setConfig("paceCaretCustomSpeed", drillPace);
-  setConfig("language", "english_1k");
+  setConfig("language", "english_5k");
   setConfig("mode", "words");
   setConfig("words", 25);
   setConfig("paceCaret", "custom");
@@ -62,8 +63,9 @@ const focusWordCount = 30;
 
 /**
  * Focus drill: the stubborn patterns (pickFocusPatterns) in a list of common
- * words containing them (english 10k, most common first), as custom text, at
- * 75% of the drill's pace with stop on error per letter.
+ * words containing them (english 10k, most common first), as custom text
+ * shuffled anew each round, at 75% of the drill's pace with stop on error per
+ * letter.
  */
 export async function applyFocusDrill(): Promise<void> {
   const patterns = pickFocusPatterns(
@@ -84,7 +86,8 @@ export async function applyFocusDrill(): Promise<void> {
   saveDrillPace(Config.paceCaretCustomSpeed);
   const drillPace = Config.paceCaretCustomSpeed;
   Funbox.setFunbox([]);
-  CustomText.setMode("repeat");
+  // a new order every round, each word once: a fixed order gets memorised
+  CustomText.setMode("shuffle");
   CustomText.setPipeDelimiter(false);
   CustomText.setText(words);
   CustomText.setLimitMode("word");
