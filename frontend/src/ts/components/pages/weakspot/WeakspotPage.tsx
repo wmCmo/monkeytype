@@ -38,10 +38,12 @@ export function WeakspotPage(): JSXElement {
 
   const days = dailyProgress(keystrokes);
   const weakspotRounds = results.filter((r) => r.funbox.includes("weakspot"));
-  const normalTests = results
-    .filter((r) => !r.funbox.includes("weakspot"))
-    .slice(-10)
-    .reverse();
+  // the transfer check: plain 60 s tests, no funbox (focus drills are
+  // custom-mode rounds without the weakspot funbox, so they don't count)
+  const normal60 = results.filter(
+    (r) => r.mode === "time" && r.mode2 === "60" && r.funbox.length === 0,
+  );
+  const normalTests = normal60.slice(-10).reverse();
   const systems = getSystemComparison(results, keystrokes);
   const carets = compareGroups(results, keystrokes, paceCaretGroup);
   const worstPairs = worstSequences(scores[2], { limit: 8 });
@@ -354,7 +356,57 @@ export function WeakspotPage(): JSXElement {
         </section>
 
         <section>
-          <h3 class="pb-2 text-xl text-sub">normal tests (weakspot off)</h3>
+          <h3 class="pb-2 text-xl text-sub">
+            normal 60 s tests (weakspot off)
+          </h3>
+          <Show when={normal60.length > 0}>
+            <div class="h-48 w-full pb-2">
+              <ChartJs
+                name="WeakspotNormal60"
+                type="line"
+                data={{
+                  labels: normal60.map((r) =>
+                    new Date(r.t).toLocaleDateString("sv"),
+                  ),
+                  datasets: [
+                    {
+                      label: "wpm",
+                      data: normal60.map((r) => r.wpm),
+                      borderColor: getTheme().main,
+                      backgroundColor: getTheme().main,
+                      fill: false,
+                      pointRadius: 3,
+                    },
+                  ],
+                }}
+                options={{
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  scales: {
+                    y: {
+                      axis: "y",
+                      title: { display: true, text: "wpm" },
+                    },
+                  },
+                  plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                      intersect: false,
+                      mode: "index",
+                      callbacks: {
+                        afterLabel: (ctx) =>
+                          `${normal60[ctx.dataIndex]?.acc ?? ""}% acc`,
+                      },
+                    },
+                  },
+                }}
+              />
+            </div>
+            <div class="pb-2 text-sub">
+              {normal60.length} tests; the line shows whether the drills carry
+              over to plain typing
+            </div>
+          </Show>
           <Show
             when={normalTests.length > 0}
             fallback={
